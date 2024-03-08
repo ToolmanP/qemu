@@ -1155,6 +1155,10 @@ uint64_t x86_cpu_get_supported_feature_word(FeatureWord w,
 #define VMX_VM_ENTRY_LOAD_IA32_RTIT_CTL             0x00040000
 #define VMX_VM_ENTRY_LOAD_IA32_PKRS                 0x00400000
 
+#define PVM_VIRTUAL_MSR_MAX_NR          15
+#define PVM_VIRTUAL_MSR_BASE            0x4b564df0
+#define PVM_VIRTUAL_MSR_MAX             (PVM_VIRTUAL_MSR_BASE + PVM_VIRTUAL_MSR_MAX_NR)
+
 /* Supported Hyper-V Enlightenments */
 #define HYPERV_FEAT_RELAXED             0
 #define HYPERV_FEAT_VAPIC               1
@@ -1723,6 +1727,9 @@ typedef struct CPUArchState {
     uint64_t async_pf_int_msr;
     uint64_t pv_eoi_en_msr;
     uint64_t poll_control_msr;
+
+    /* PVM specific PV MSRs */
+    uint64_t pvm_msrs[PVM_VIRTUAL_MSR_MAX_NR];
 
     /* Partition-wide HV MSRs, will be updated only on the first vcpu */
     uint64_t msr_hv_hypercall;

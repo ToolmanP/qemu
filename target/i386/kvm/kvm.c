@@ -156,6 +156,8 @@ static bool has_kvm_cpuid_vendor;
 static uint32_t kvm_cpuid_vendor_features;
 static uint32_t kvm_cpuid_vendor_signature;
 
+static int pvm_msrs_num;
+
 static struct kvm_cpuid2 *cpuid_cache;
 static struct kvm_cpuid2 *hv_cpuid_cache;
 static struct kvm_msr_list *kvm_feature_msrs;
@@ -2467,6 +2469,10 @@ static int kvm_get_supported_msrs(KVMState *s)
             case MSR_IA32_PKRS:
                 has_msr_pkrs = true;
                 break;
+            case PVM_VIRTUAL_MSR_BASE ... PVM_VIRTUAL_MSR_MAX:
+                if (kvm_msr_list->indices[i] - PVM_VIRTUAL_MSR_BASE + 1 > pvm_msrs_num)
+                    pvm_msrs_num = kvm_msr_list->indices[i] - PVM_VIRTUAL_MSR_BASE + 1;
+                break;
             }
         }
     }
@@ -3583,6 +3589,9 @@ static int kvm_put_msrs(X86CPU *cpu, int level)
         }
     }
 
+    for (i = 0; i < pvm_msrs_num; i++)
+        kvm_msr_entry_add(cpu, PVM_VIRTUAL_MSR_BASE + i, env->pvm_msrs[i]);
+
     return kvm_buf_set_msrs(cpu);
 }
 
@@ -3957,6 +3966,9 @@ static int kvm_get_msrs(X86CPU *cpu)
         }
     }
 
+    for (i = 0; i < pvm_msrs_num; i++)
+        kvm_msr_entry_add(cpu, PVM_VIRTUAL_MSR_BASE + i, 0);
+
     ret = kvm_vcpu_ioctl(CPU(cpu), KVM_GET_MSRS, cpu->kvm_msr_buf);
     if (ret < 0) {
         return ret;
@@ -4276,6 +4288,9 @@ static int kvm_get_msrs(X86CPU *cpu)
             break;
         case MSR_ARCH_LBR_INFO_0 ... MSR_ARCH_LBR_INFO_0 + 31:
             env->lbr_records[index - MSR_ARCH_LBR_INFO_0].info = msrs[i].data;
+            break;
+        case PVM_VIRTUAL_MSR_BASE ... PVM_VIRTUAL_MSR_MAX:
+            env->pvm_msrs[index - PVM_VIRTUAL_MSR_BASE] = msrs[i].data;
             break;
         }
     }

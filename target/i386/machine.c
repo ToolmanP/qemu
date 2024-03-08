@@ -470,6 +470,18 @@ static bool poll_control_msr_needed(void *opaque)
     return cpu->env.poll_control_msr != 1;
 }
 
+static bool pvm_msrs_needed(void *opaque)
+{
+    int i;
+    X86CPU *cpu = opaque;
+
+    for (i = 0; i < PVM_VIRTUAL_MSR_MAX_NR; i++)
+        if (cpu->env.pvm_msrs[i] != 0)
+            return true;
+
+    return false;
+}
+
 static const VMStateDescription vmstate_steal_time_msr = {
     .name = "cpu/steal_time_msr",
     .version_id = 1,
@@ -521,6 +533,17 @@ static const VMStateDescription vmstate_poll_control_msr = {
     .needed = poll_control_msr_needed,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT64(env.poll_control_msr, X86CPU),
+        VMSTATE_END_OF_LIST()
+    }
+};
+
+static const VMStateDescription vmstate_pvm_msrs = {
+    .name = "cpu/pvm_msr",
+    .version_id = 1,
+    .minimum_version_id = 1,
+    .needed = pvm_msrs_needed,
+    .fields = (const VMStateField[]) {
+        VMSTATE_UINT64_ARRAY(env.pvm_msrs, X86CPU, PVM_VIRTUAL_MSR_MAX_NR),
         VMSTATE_END_OF_LIST()
     }
 };
@@ -1706,6 +1729,7 @@ const VMStateDescription vmstate_x86_cpu = {
         &vmstate_pv_eoi_msr,
         &vmstate_steal_time_msr,
         &vmstate_poll_control_msr,
+        &vmstate_pvm_msrs,
         &vmstate_fpop_ip_dp,
         &vmstate_msr_tsc_adjust,
         &vmstate_msr_tscdeadline,
