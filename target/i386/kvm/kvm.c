@@ -151,6 +151,11 @@ static int has_triple_fault_event;
 
 static bool has_msr_mcg_ext_ctl;
 
+#define KVM_CPUID_VENDOR_FEATURES 0x40000002
+static bool has_kvm_cpuid_vendor;
+static uint32_t kvm_cpuid_vendor_features;
+static uint32_t kvm_cpuid_vendor_signature;
+
 static struct kvm_cpuid2 *cpuid_cache;
 static struct kvm_cpuid2 *hv_cpuid_cache;
 static struct kvm_msr_list *kvm_feature_msrs;
@@ -1858,7 +1863,10 @@ int kvm_arch_init_vcpu(CPUState *cs)
         memcpy(signature, "KVMKVMKVM\0\0\0", 12);
         c = &cpuid_data.entries[cpuid_i++];
         c->function = KVM_CPUID_SIGNATURE | kvm_base;
-        c->eax = KVM_CPUID_FEATURES | kvm_base;
+        if (has_kvm_cpuid_vendor)
+            c->eax = KVM_CPUID_VENDOR_FEATURES | kvm_base;
+        else
+            c->eax = KVM_CPUID_FEATURES | kvm_base;
         c->ebx = signature[0];
         c->ecx = signature[1];
         c->edx = signature[2];
@@ -1867,6 +1875,13 @@ int kvm_arch_init_vcpu(CPUState *cs)
         c->function = KVM_CPUID_FEATURES | kvm_base;
         c->eax = env->features[FEAT_KVM];
         c->edx = env->features[FEAT_KVM_HINTS];
+
+        if (has_kvm_cpuid_vendor) {
+            c = &cpuid_data.entries[cpuid_i++];
+            c->function = KVM_CPUID_VENDOR_FEATURES | kvm_base;
+            c->eax = kvm_cpuid_vendor_features;
+            c->ebx = kvm_cpuid_vendor_signature;
+        }
     }
 
     cpu_x86_cpuid(env, 0, 0, &limit, &unused, &unused, &unused);
@@ -2515,6 +2530,7 @@ int kvm_arch_init(MachineState *ms, KVMState *s)
 {
     uint64_t identity_base = 0xfffbc000;
     uint64_t shadow_mem;
+    uint32_t eax;
     int ret;
     struct utsname utsname;
     Error *local_err = NULL;
@@ -2708,6 +2724,15 @@ int kvm_arch_init(MachineState *ms, KVMState *s)
                          strerror(-ret));
             exit(1);
         }
+    }
+
+    eax = kvm_arch_get_supported_cpuid(s, KVM_CPUID_SIGNATURE, 0, R_EAX);
+    if (eax == KVM_CPUID_VENDOR_FEATURES) {
+            has_kvm_cpuid_vendor = true;
+            kvm_cpuid_vendor_features = kvm_arch_get_supported_cpuid(s,
+                                        KVM_CPUID_VENDOR_FEATURES, 0, R_EAX);
+            kvm_cpuid_vendor_signature = kvm_arch_get_supported_cpuid(s,
+                                         KVM_CPUID_VENDOR_FEATURES, 0, R_EBX);
     }
 
     return 0;
