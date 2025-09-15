@@ -166,6 +166,9 @@ static bool has_msr_perf_capabs;
 static bool has_msr_pkrs;
 static bool has_msr_hwcr;
 
+static bool has_pvm_msr;
+static bool pvm_valid_msrs[PVM_VIRTUAL_MSR_COUNT];
+
 static uint32_t has_architectural_pmu_version;
 static uint32_t num_architectural_pmu_gp_counters;
 static uint32_t num_architectural_pmu_fixed_counters;
@@ -2631,6 +2634,11 @@ static int kvm_get_supported_msrs(KVMState *s)
                 break;
             case MSR_K7_HWCR:
                 has_msr_hwcr = true;
+                break;
+	        case PVM_VIRTUAL_MSR_BASE ... PVM_VIRTUAL_MSR_MAX:
+		        pvm_valid_msrs[kvm_msr_list->indices[i] - PVM_VIRTUAL_MSR_BASE] = true;
+		        has_pvm_msr = true;
+		        break;
             }
         }
     }
@@ -4238,6 +4246,12 @@ static int kvm_put_msrs(X86CPU *cpu, int level)
         }
     }
 
+    if (has_pvm_msr) {
+	    for (i = 0; i < PVM_VIRTUAL_MSR_COUNT; i++)
+		    if (pvm_valid_msrs[i])
+			    kvm_msr_entry_add(cpu, PVM_VIRTUAL_MSR_BASE + i, env->pvm_msrs[i]);
+    }
+
     return kvm_buf_set_msrs(cpu);
 }
 
@@ -4629,6 +4643,12 @@ static int kvm_get_msrs(X86CPU *cpu)
         }
     }
 
+    if (has_pvm_msr) {
+	    for (i = 0; i < PVM_VIRTUAL_MSR_COUNT; i++)
+		    if (pvm_valid_msrs[i])
+			    kvm_msr_entry_add(cpu, PVM_VIRTUAL_MSR_BASE + i, 0);
+    }
+
     ret = kvm_vcpu_ioctl(CPU(cpu), KVM_GET_MSRS, cpu->kvm_msr_buf);
     if (ret < 0) {
         return ret;
@@ -4979,6 +4999,9 @@ static int kvm_get_msrs(X86CPU *cpu)
         case MSR_K7_HWCR:
             env->msr_hwcr = msrs[i].data;
             break;
+	    case PVM_VIRTUAL_MSR_BASE ... PVM_VIRTUAL_MSR_MAX:
+	        env->pvm_msrs[index - PVM_VIRTUAL_MSR_BASE] = msrs[i].data;
+	        break;
         }
     }
 
